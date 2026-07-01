@@ -1,0 +1,504 @@
+/* =================================================================
+   DRS Admin Dashboard — Dark Theme
+   ================================================================= */
+
+/* ---- Design tokens ------------------------------------------------ */
+:root {
+    --bg-base:       #06060f;
+    --bg-surface:    #0d0d1a;
+    --bg-elevated:   #151528;
+    --bg-card:       #1a1a35;
+    --bg-card-hover: #222248;
+
+    --accent:        #6366f1;
+    --accent-light:  #818cf8;
+    --accent-glow:   rgba(99, 102, 241, 0.25);
+    --accent-subtle: rgba(99, 102, 241, 0.08);
+
+    --green:         #22c55e;
+    --green-glow:    rgba(34, 197, 94, 0.35);
+    --red:           #ef4444;
+    --amber:         #f59e0b;
+
+    --text:          #e2e8f0;
+    --text-secondary:#94a3b8;
+    --text-muted:    #475569;
+
+    --border:        rgba(255, 255, 255, 0.06);
+    --border-accent: rgba(99, 102, 241, 0.3);
+
+    --radius:        12px;
+    --radius-sm:     8px;
+    --shadow:        0 8px 32px rgba(0, 0, 0, 0.5);
+    --transition:    all 0.2s cubic-bezier(.4,0,.2,1);
+}
+
+/* ---- Reset & base ------------------------------------------------- */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-base);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---- App layout --------------------------------------------------- */
+#app {
+    display: flex;
+    height: 100vh;
+}
+
+/* =================================================================
+   SIDEBAR
+   ================================================================= */
+#sidebar {
+    width: 290px;
+    min-width: 290px;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+}
+
+/* ---- Sidebar header / logo ---------------------------------------- */
+.sidebar-header {
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-icon {
+    font-size: 22px;
+    color: var(--accent-light);
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.logo h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    background: linear-gradient(135deg, var(--accent-light), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--accent-subtle);
+    color: var(--accent-light);
+    letter-spacing: 0.3px;
+}
+
+/* ---- Section title ------------------------------------------------ */
+.sidebar-section-title {
+    padding: 14px 20px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+}
+
+/* ---- Host list container ------------------------------------------ */
+#host-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px 12px;
+}
+
+/* ---- Empty state -------------------------------------------------- */
+.empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-state p {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+}
+
+.empty-state span {
+    font-size: 12px;
+}
+
+#no-hosts.hidden {
+    display: none;
+}
+
+/* =================================================================
+   HOST CARD
+   ================================================================= */
+.host-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: var(--transition);
+    overflow: hidden;
+    position: relative;
+}
+
+.host-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    opacity: 0;
+    transition: opacity 0.3s;
+    background: linear-gradient(135deg, var(--accent-glow), transparent 60%);
+    pointer-events: none;
+}
+
+.host-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.host-card:hover::after {
+    opacity: 1;
+}
+
+.host-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 6px 24px var(--accent-glow);
+}
+
+.host-card.selected::after {
+    opacity: 1;
+}
+
+/* ---- Preview image area ------------------------------------------- */
+.host-preview {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--bg-base);
+    overflow: hidden;
+    position: relative;
+}
+
+.host-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+}
+
+.host-card:hover .host-preview img {
+    transform: scale(1.03);
+}
+
+.host-preview .no-preview {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* ---- Host info bar ------------------------------------------------ */
+.host-info {
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.host-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+
+.host-status {
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.host-status.online {
+    color: var(--green);
+}
+
+.status-circle {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green-glow);
+    animation: statusPulse 2s infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* =================================================================
+   MAIN WORKSPACE
+   ================================================================= */
+#workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-base);
+}
+
+/* ---- Toolbar ------------------------------------------------------ */
+#toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 24px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    min-height: 52px;
+    flex-shrink: 0;
+}
+
+#connection-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#connected-host-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ---- Status dot --------------------------------------------------- */
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    display: inline-block;
+    transition: var(--transition);
+}
+
+.status-dot.connecting {
+    background: var(--amber);
+    animation: statusPulse 1s infinite;
+}
+
+.status-dot.connected {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green-glow);
+}
+
+.status-dot.disconnected {
+    background: var(--red);
+}
+
+/* ---- Toolbar buttons ---------------------------------------------- */
+#toolbar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.btn-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.btn:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    border-color: var(--border-accent);
+}
+
+.btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    border-color: var(--accent);
+    color: var(--accent-light);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.btn-primary.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.btn-danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--red);
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+}
+
+/* =================================================================
+   VIDEO CONTAINER
+   ================================================================= */
+#video-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: #030308;
+    overflow: hidden;
+}
+
+/* ---- Splash screen ------------------------------------------------ */
+#splash {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+#splash.hidden {
+    display: none;
+}
+
+.splash-icon {
+    font-size: 72px;
+    opacity: 0.3;
+    animation: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
+}
+
+#splash h2 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+#splash p {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+/* ---- Video element ------------------------------------------------ */
+#remote-video {
+    display: none;
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+/* ---- Control banner ----------------------------------------------- */
+#control-banner {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: #fff;
+    padding: 8px 22px;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 20px var(--accent-glow);
+    z-index: 20;
+    animation: bannerSlideIn 0.35s ease;
+    white-space: nowrap;
+}
+
+#control-banner.hidden {
+    display: none;
+}
+
+@keyframes bannerSlideIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* =================================================================
+   SCROLLBAR
+   ================================================================= */
+#host-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+#host-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#host-list::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    border-radius: 2px;
+}
+
+#host-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}

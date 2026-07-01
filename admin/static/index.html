@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRS — Remote Device Management</title>
+    <meta name="description" content="Admin dashboard for remote device management and screen streaming.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+    <!-- ============================================================ -->
+    <!-- SIDEBAR — host list with live preview thumbnails              -->
+    <!-- ============================================================ -->
+    <aside id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">◈</span>
+                <h1>DRS</h1>
+            </div>
+            <span id="host-count" class="badge">0 online</span>
+        </div>
+
+        <div class="sidebar-section-title">Remote Hosts</div>
+        <div id="host-list">
+            <!-- Host cards are injected here by app.js -->
+        </div>
+
+        <div id="no-hosts" class="empty-state">
+            <p>No hosts connected</p>
+            <span>Start a client agent to see it here</span>
+        </div>
+    </aside>
+
+    <!-- ============================================================ -->
+    <!-- MAIN WORKSPACE — toolbar + video player                       -->
+    <!-- ============================================================ -->
+    <main id="workspace">
+        <!-- Toolbar -->
+        <header id="toolbar">
+            <div id="connection-info">
+                <span id="connected-host-name">Select a host</span>
+                <span id="connection-status" class="status-dot"></span>
+            </div>
+            <div id="toolbar-actions">
+                <button id="btn-control" class="btn btn-primary" disabled>
+                    <span class="btn-icon">⊙</span> Take Control
+                </button>
+                <button id="btn-fullscreen" class="btn btn-secondary" disabled>
+                    <span class="btn-icon">⛶</span> Fullscreen
+                </button>
+                <button id="btn-disconnect" class="btn btn-danger" disabled>
+                    <span class="btn-icon">✕</span> Disconnect
+                </button>
+            </div>
+        </header>
+
+        <!-- Video container -->
+        <div id="video-container">
+            <!-- Splash screen (shown when no host is selected) -->
+            <div id="splash">
+                <div class="splash-icon">🖥️</div>
+                <h2>Remote Device Stream</h2>
+                <p>Select a host from the sidebar to begin viewing</p>
+            </div>
+
+            <!-- Remote video element (hidden until stream starts) -->
+            <video id="remote-video" autoplay playsinline muted></video>
+
+            <!-- Control-mode banner -->
+            <div id="control-banner" class="hidden">
+                ⊙&ensp;You are in control of <strong id="control-host-name"></strong>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
