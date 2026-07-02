@@ -8,9 +8,11 @@ require (
 	github.com/gen2brain/x264-go v0.3.2
 	github.com/ghp3000/screenshot v0.0.0-20230616013409-47b0c5d3b9ac
 	github.com/go-vgo/robotgo v1.0.2
+	github.com/gogpu/systray v0.1.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/pion/webrtc/v3 v3.3.6
+	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
 )
 
 require (
@@ -21,6 +23,7 @@ require (
 	github.com/gen2brain/x264-go/x264c v0.0.0-20260308140037-84f13eb3a12e // indirect
 	github.com/gen2brain/x264-go/yuv v0.0.0-20221204084822-82ee2951dea2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-webgpu/goffi v0.5.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/jezek/xgb v1.3.0 // indirect
@@ -61,6 +64,6 @@ require (
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

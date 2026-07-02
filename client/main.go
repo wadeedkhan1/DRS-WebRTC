@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/jpeg"
+	"image/png"
 	"log"
 	"math/rand"
 	"os"
@@ -15,10 +18,12 @@ import (
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	x264 "github.com/gen2brain/x264-go"
 	"github.com/go-vgo/robotgo"
+	"github.com/gogpu/systray"
 	"github.com/gorilla/websocket"
 	"github.com/kbinani/screenshot"
 	"github.com/ghp3000/screenshot/d3d"
@@ -83,15 +88,127 @@ var (
 )
 
 // =====================================================================
+// Win32 Helpers for console manipulation (only runs on Windows)
+// =====================================================================
+
+var (
+	kernel32 = syscall.NewLazyDLL("kernel32.dll")
+	user32   = syscall.NewLazyDLL("user32.dll")
+
+	getConsoleWindow = kernel32.NewProc("GetConsoleWindow")
+	showWindow       = user32.NewProc("ShowWindow")
+	getSystemMenu    = user32.NewProc("GetSystemMenu")
+	deleteMenu       = user32.NewProc("DeleteMenu")
+)
+
+const (
+	SW_HIDE      = 0
+	SW_SHOW      = 5
+	SC_CLOSE     = 0xF060
+	MF_BYCOMMAND = 0x00000000
+)
+
+func hideConsole() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	hwnd, _, _ := getConsoleWindow.Call()
+	if hwnd != 0 {
+		showWindow.Call(hwnd, SW_HIDE)
+	}
+}
+
+func showConsole() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	hwnd, _, _ := getConsoleWindow.Call()
+	if hwnd != 0 {
+		showWindow.Call(hwnd, SW_SHOW)
+		// Disable close button so user doesn't accidentally terminate the app
+		hMenu, _, _ := getSystemMenu.Call(hwnd, 0)
+		if hMenu != 0 {
+			deleteMenu.Call(hMenu, SC_CLOSE, MF_BYCOMMAND)
+		}
+	}
+}
+
+// =====================================================================
+// Helper to generate a beautiful custom 16x16 PNG icon in memory
+// =====================================================================
+
+func generateIcon() []byte {
+	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	bgColor := color.RGBA{0, 120, 215, 255} // Blue background
+	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
+
+	// Draw a white monitor/screen silhouette
+	fgColor := color.RGBA{255, 255, 255, 255}
+	// Monitor frame
+	for x := 2; x < 14; x++ {
+		img.Set(x, 2, fgColor)
+		img.Set(x, 11, fgColor)
+	}
+	for y := 2; y < 12; y++ {
+		img.Set(2, y, fgColor)
+		img.Set(13, y, fgColor)
+	}
+	// Monitor stand
+	for x := 6; x < 10; x++ {
+		img.Set(x, 12, fgColor)
+	}
+	for x := 4; x < 12; x++ {
+		img.Set(x, 13, fgColor)
+	}
+
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	return buf.Bytes()
+}
+
+// =====================================================================
+// System Tray Setup & Loop
+// =====================================================================
+
+func runTray() {
+	tray := systray.New()
+	tray.SetIcon(generateIcon())
+	tray.SetTooltip("DRS Client Agent")
+
+	menu := systray.NewMenu()
+	menu.Add("Show Logs", func() {
+		showConsole()
+	})
+	menu.Add("Hide Logs", func() {
+		hideConsole()
+	})
+	menu.AddSeparator()
+	menu.Add("Quit", func() {
+		log.Println("Exiting DRS Client via system tray")
+		stopWebRTCSession()
+		wsMu.Lock()
+		if wsConn != nil {
+			wsConn.Close()
+		}
+		wsMu.Unlock()
+		os.Exit(0)
+	})
+
+	tray.SetMenu(menu)
+	tray.Show()
+
+	_ = tray.Run()
+}
+
+// =====================================================================
 // Entry point
 // =====================================================================
 
 func main() {
-	// PERF: Raise the GC trigger threshold. Default GOGC=100 means GC
-	// runs whenever heap doubles since last collection — with our
-	// per-frame churn that was triggering very frequently. 400 means
-	// the heap can grow 4x before a collection, trading some extra
-	// memory (fine on a desktop) for far fewer, less disruptive pauses.
+	// Hide console at startup immediately
+	hideConsole()
+
+	// PERF: Raise the GC trigger threshold.
 	debug.SetGCPercent(400)
 
 	drsURL = os.Getenv("DRS_URL")
@@ -102,17 +219,23 @@ func main() {
 	clientID = loadOrGenerateID()
 	hostName = getHostname()
 
-	log.Printf("Client agent starting — ID=%s  hostname=%s", clientID, hostName)
+	// Start reconnection and main loop in a background goroutine
+	go func() {
+		log.Printf("Client agent starting — ID=%s  hostname=%s", clientID, hostName)
 
-	backoff := 2 * time.Second
-	for {
-		err := run()
-		log.Printf("Connection lost: %v — reconnecting in %v …", err, backoff)
-		time.Sleep(backoff)
-		if backoff < 30*time.Second {
-			backoff *= 2
+		backoff := 2 * time.Second
+		for {
+			err := run()
+			log.Printf("Connection lost: %v — reconnecting in %v …", err, backoff)
+			time.Sleep(backoff)
+			if backoff < 30*time.Second {
+				backoff *= 2
+			}
 		}
-	}
+	}()
+
+	// Run the system tray loop (blocks the main thread)
+	runTray()
 }
 
 // =====================================================================
