@@ -1,2 +1,5 @@
 *.exe
 drs_server
+.client_id
+*.txt
+client_id

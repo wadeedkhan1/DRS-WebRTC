@@ -6,6 +6,7 @@ go 1.25.0
 
 require (
 	github.com/gen2brain/x264-go v0.3.2
+	github.com/ghp3000/screenshot v0.0.0-20230616013409-47b0c5d3b9ac
 	github.com/go-vgo/robotgo v1.0.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018

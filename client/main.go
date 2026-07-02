@@ -11,14 +11,17 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	x264 "github.com/gen2brain/x264-go"
 	"github.com/go-vgo/robotgo"
 	"github.com/gorilla/websocket"
 	"github.com/kbinani/screenshot"
+	"github.com/ghp3000/screenshot/d3d"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 )
@@ -142,7 +145,10 @@ func run() error {
 	if ack.Type != "registered" {
 		return fmt.Errorf("unexpected ack type: %s", ack.Type)
 	}
-	log.Printf("Registered with DRS server")
+	if ack.ID != "" {
+		clientID = ack.ID
+	}
+	log.Printf("Registered with DRS server as ID=%s", clientID)
 
 	previewCtx, previewCancel := context.WithCancel(context.Background())
 	defer previewCancel()
@@ -378,7 +384,78 @@ func handleCandidate(msg Message) {
 // API — it always returns a fresh *image.RGBA backed by a new GDI read).
 // =====================================================================
 
+type LocalDXGIScreenshot struct {
+	rect      image.Rectangle
+	device    *d3d.ID3D11Device
+	deviceCtx *d3d.ID3D11DeviceContext
+	ddup      *d3d.OutputDuplicator
+	display   int
+	cursor    int32
+}
+
+func (s *LocalDXGIScreenshot) Init(display int) error {
+	if display < 0 {
+		return fmt.Errorf("display %d is invalid", display)
+	}
+	s.Release()
+	s.display = display
+	s.rect = screenshot.GetDisplayBounds(display)
+	if s.rect.Dx() == 0 || s.rect.Dy() == 0 {
+		return fmt.Errorf("retrieved invalid display bounds 0x0")
+	}
+	var err error
+	s.device, s.deviceCtx, err = d3d.NewD3D11Device()
+	if err != nil {
+		return err
+	}
+	s.ddup, err = d3d.NewIDXGIOutputDuplication(s.device, s.deviceCtx, uint(s.display))
+	if err != nil {
+		s.Release()
+		return err
+	}
+
+	return nil
+}
+
+func (s *LocalDXGIScreenshot) Capture() (*image.RGBA, error) {
+	if s.ddup == nil {
+		return nil, fmt.Errorf("no init, please run Init first")
+	}
+	rect := screenshot.GetDisplayBounds(s.display)
+	if rect != s.rect {
+		s.Release()
+		if err := s.Init(s.display); err != nil {
+			return nil, err
+		}
+	}
+
+	imgBuf := image.NewRGBA(s.rect)
+	err := s.ddup.GetImage(imgBuf, 0, atomic.LoadInt32(&s.cursor) == 1)
+	if err != nil {
+		return nil, err
+	}
+	return imgBuf, nil
+}
+
+func (s *LocalDXGIScreenshot) Release() {
+	if s.ddup != nil {
+		s.ddup.Release()
+		s.ddup = nil
+	}
+	if s.device != nil {
+		s.device.Release()
+		s.device = nil
+	}
+	if s.deviceCtx != nil {
+		s.deviceCtx.Release()
+		s.deviceCtx = nil
+	}
+}
+
 func streamScreen(ctx context.Context, track *webrtc.TrackLocalStaticSample) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	bounds := screenshot.GetDisplayBounds(0)
 	origW := bounds.Dx()
 	origH := bounds.Dy()
@@ -394,6 +471,18 @@ func streamScreen(ctx context.Context, track *webrtc.TrackLocalStaticSample) {
 
 	needsScale := origW > 1280
 	log.Printf("Streaming screen: original %dx%d downscaled to %dx%d for streaming", origW, origH, width, height)
+
+	// Initialize Screenshot Provider
+	var useDXGI bool = true
+	var dxgiShot LocalDXGIScreenshot
+	err := dxgiShot.Init(0)
+	if err != nil {
+		log.Printf("DXGI screen capture initialization failed: %v. Falling back to GDI.", err)
+		useDXGI = false
+	} else {
+		log.Println("Using DXGI (Desktop Duplication API) for screen capture")
+		defer dxgiShot.Release()
+	}
 
 	buf := &bytes.Buffer{}
 	opts := &x264.Options{
@@ -474,12 +563,29 @@ func streamScreen(ctx context.Context, track *webrtc.TrackLocalStaticSample) {
 			}
 
 			t0 := time.Now()
-			img, err := screenshot.CaptureRect(bounds)
-			captureDur := time.Since(t0)
-			if err != nil {
-				log.Printf("Screen capture error: %v", err)
-				continue
+			var img *image.RGBA
+			if useDXGI {
+				img, err = dxgiShot.Capture()
+				if err != nil {
+					log.Printf("DXGI capture error: %v — attempting to re-initialize DXGI...", err)
+					dxgiShot.Release()
+					if initErr := dxgiShot.Init(0); initErr != nil {
+						log.Printf("Re-init DXGI failed: %v. Falling back to GDI.", initErr)
+						useDXGI = false
+					} else {
+						continue
+					}
+				}
 			}
+
+			if !useDXGI {
+				img, err = screenshot.CaptureRect(bounds)
+				if err != nil {
+					log.Printf("GDI screen capture error: %v", err)
+					continue
+				}
+			}
+			captureDur := time.Since(t0)
 
 			t1 := time.Now()
 			finalImg := img
@@ -731,6 +837,10 @@ func capturePreview(previewBuf **image.RGBA, jpegBuf *bytes.Buffer) (string, err
 // =====================================================================
 
 func loadOrGenerateID() string {
+	if id := os.Getenv("DRS_CLIENT_ID"); id != "" {
+		return id
+	}
+
 	data, err := os.ReadFile(".client_id")
 	if err == nil && len(data) > 0 {
 		return string(data)

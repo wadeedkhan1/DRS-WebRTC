@@ -15,6 +15,8 @@ github.com/gen2brain/x264-go/x264c v0.0.0-20260308140037-84f13eb3a12e h1:CPLH93M
 github.com/gen2brain/x264-go/x264c v0.0.0-20260308140037-84f13eb3a12e/go.mod h1:r2t0/BO5YgPRwWQpLYO5iB5FLSj1ArTQc/zmAoAV7sQ=
 github.com/gen2brain/x264-go/yuv v0.0.0-20221204084822-82ee2951dea2 h1:lihaRUKRj94EWVZRp1jTmEiIxmvjEiSb9fJl2xftrXY=
 github.com/gen2brain/x264-go/yuv v0.0.0-20221204084822-82ee2951dea2/go.mod h1:PzzJntdOaVt4Gc37fNaEXpqmhKkUgd/xqyPMUfx+FQc=
+github.com/ghp3000/screenshot v0.0.0-20230616013409-47b0c5d3b9ac h1:0yhnSFIvLUxrpOXJHkgtEB2gE30b3cly4haCSi62sKM=
+github.com/ghp3000/screenshot v0.0.0-20230616013409-47b0c5d3b9ac/go.mod h1:8owpdPDUV9gwwrDfvWPklFo1yJkQCtrkndXfcjDK/Q8=
 github.com/go-ole/go-ole v1.2.6/go.mod h1:pprOEPIfldk/42T2oK7lQ4v4JSDwmV0As9GaiUsvbm0=
 github.com/go-ole/go-ole v1.3.0 h1:Dt6ye7+vXGIKZ7Xtk4s6/xVdGDQynvom7xCFEdWr6uE=
 github.com/go-ole/go-ole v1.3.0/go.mod h1:5LS6F96DhAwUc7C+1HLexzMXY1xGRSryjyPPKW6zv78=

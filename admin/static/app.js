@@ -111,30 +111,78 @@ function renderHostList() {
     // Show/hide empty state
     noHostsEl.classList.toggle('hidden', count > 0);
 
-    hostListEl.innerHTML = '';
-    hosts.forEach((host) => {
-        const card = document.createElement('div');
-        card.className = 'host-card' + (host.id === selectedHostID ? ' selected' : '');
-        card.dataset.hostId = host.id;
-
-        // Preview image or placeholder
-        const previewHTML = host.preview
-            ? `<img src="${host.preview}" alt="Screen preview" />`
-            : `<div class="no-preview">No preview available</div>`;
-
-        card.innerHTML = `
-            <div class="host-preview">${previewHTML}</div>
-            <div class="host-info">
-                <span class="host-name" title="${host.hostname}">${host.hostname}</span>
-                <span class="host-status online">
-                    <span class="status-circle"></span> Online
-                </span>
-            </div>
-        `;
-
-        card.addEventListener('click', () => selectHost(host.id, host.hostname));
-        hostListEl.appendChild(card);
+    // Keep track of existing DOM cards by their host ID
+    const existingCards = {};
+    hostListEl.querySelectorAll('.host-card').forEach(card => {
+        existingCards[card.dataset.hostId] = card;
     });
+
+    // Render/update cards for all online hosts
+    hosts.forEach((host) => {
+        let card = existingCards[host.id];
+
+        if (!card) {
+            // Create a new card if it doesn't exist
+            card = document.createElement('div');
+            card.className = 'host-card';
+            card.dataset.hostId = host.id;
+            card.addEventListener('click', () => selectHost(host.id, host.hostname));
+        }
+
+        // Apply/remove selected class
+        card.classList.toggle('selected', host.id === selectedHostID);
+
+        // Update card contents incrementally
+        let previewEl = card.querySelector('.host-preview');
+        if (!previewEl) {
+            // Build the card internal structure on first creation
+            const previewHTML = host.preview
+                ? `<img src="${host.preview}" alt="Screen preview" />`
+                : `<div class="no-preview">No preview available</div>`;
+
+            card.innerHTML = `
+                <div class="host-preview">${previewHTML}</div>
+                <div class="host-info">
+                    <span class="host-name" title="${host.hostname}">${host.hostname}</span>
+                    <span class="host-status online">
+                        <span class="status-circle"></span> Online
+                    </span>
+                </div>
+            `;
+        } else {
+            // Update preview image src if present and changed, or switch to placeholder
+            const img = previewEl.querySelector('img');
+            if (host.preview) {
+                if (img) {
+                    if (img.src !== host.preview) {
+                        img.src = host.preview;
+                    }
+                } else {
+                    previewEl.innerHTML = `<img src="${host.preview}" alt="Screen preview" />`;
+                }
+            } else {
+                if (img || !previewEl.querySelector('.no-preview')) {
+                    previewEl.innerHTML = '<div class="no-preview">No preview available</div>';
+                }
+            }
+
+            // Update hostname text if it has changed
+            const nameEl = card.querySelector('.host-name');
+            if (nameEl && nameEl.textContent !== host.hostname) {
+                nameEl.textContent = host.hostname;
+                nameEl.title = host.hostname;
+            }
+        }
+
+        // Ensure the card is appended in correct order
+        hostListEl.appendChild(card);
+
+        // Remove from tracking map to prevent deletion
+        delete existingCards[host.id];
+    });
+
+    // Remove any cards for hosts that are no longer online
+    Object.values(existingCards).forEach(card => card.remove());
 }
 
 // =====================================================================
@@ -147,7 +195,7 @@ function selectHost(hostID, hostName) {
 
     // Tear down the previous session
     if (peerConnection) {
-        disconnectHost(false); // silent — don't send disconnect for old host
+        disconnectHost(true); // send disconnect for old host
     }
 
     selectedHostID = hostID;

@@ -224,19 +224,20 @@ func (s *Server) handleConnection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		s.mu.Lock()
+		s.counter++
+		assignedID := fmt.Sprintf("host_%d", s.counter)
 		client = &ConnectedClient{
-			ID: msg.ID, Hostname: msg.Hostname,
+			ID: assignedID, Hostname: msg.Hostname,
 			Role: "host", Conn: conn,
 		}
-
-		s.mu.Lock()
-		s.clients[msg.ID] = client
+		s.clients[assignedID] = client
 		s.mu.Unlock()
 
-		auditLog(msg.ID, msg.Hostname, "HOST_CONNECT")
+		auditLog(assignedID, msg.Hostname, "HOST_CONNECT")
 
-		// Confirm registration to the host
-		ack := Message{Type: "registered"}
+		// Confirm registration to the host with the assigned ID
+		ack := Message{Type: "registered", ID: assignedID}
 		ackData, _ := json.Marshal(ack)
 		_ = conn.WriteMessage(websocket.TextMessage, ackData)
 
@@ -249,7 +250,9 @@ func (s *Server) handleConnection(w http.ResponseWriter, r *http.Request) {
 	// -----------------------------------------------------------------
 	defer func() {
 		s.mu.Lock()
-		delete(s.clients, client.ID)
+		if s.clients[client.ID] == client {
+			delete(s.clients, client.ID)
+		}
 		s.mu.Unlock()
 
 		auditLog(client.ID, client.Hostname,
