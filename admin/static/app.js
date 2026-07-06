@@ -24,6 +24,9 @@ let selectedHostName = null;
 let controlMode = false;
 let hosts = [];
 let pendingCandidates = [];
+let videoFrameCallbackId = null;
+let lastFpsUpdate = 0;
+let frameCount = 0;
 
 // ---- DOM references ------------------------------------------------
 const hostListEl        = document.getElementById('host-list');
@@ -40,6 +43,7 @@ const btnFullscreen     = document.getElementById('btn-fullscreen');
 const btnDisconnect     = document.getElementById('btn-disconnect');
 const selectResolution  = document.getElementById('select-resolution');
 const selectQuality     = document.getElementById('select-quality');
+const streamFpsEl       = document.getElementById('stream-fps');
 
 // =====================================================================
 // WebSocket connection
@@ -217,6 +221,8 @@ function selectHost(hostID, hostName) {
 
     selectResolution.disabled = false;
     selectQuality.disabled = false;
+    streamFpsEl.classList.add('hidden');
+    streamFpsEl.textContent = '0 FPS';
 
     // Ask the DRS to relay a connection request to the target host
     wsSend({
@@ -267,6 +273,22 @@ async function handleOffer(msg) {
         connStatusEl.className = 'status-dot connected';
         btnControl.disabled = false;
         btnFullscreen.disabled = false;
+
+        // Start FPS tracking
+        streamFpsEl.classList.remove('hidden');
+        streamFpsEl.textContent = '... FPS';
+        frameCount = 0;
+        lastFpsUpdate = 0;
+        
+        if (videoFrameCallbackId && videoEl.cancelVideoFrameCallback) {
+            videoEl.cancelVideoFrameCallback(videoFrameCallbackId);
+        }
+        
+        if (videoEl.requestVideoFrameCallback) {
+            videoFrameCallbackId = videoEl.requestVideoFrameCallback(updateFpsCallback);
+        } else {
+            streamFpsEl.textContent = 'FPS N/A';
+        }
     };
 
     // ---- Outbound ICE candidates -----------------------------------
@@ -369,6 +391,14 @@ function disconnectHost(notify = true) {
     btnDisconnect.disabled = true;
     selectResolution.disabled = true;
     selectQuality.disabled = true;
+
+    if (videoFrameCallbackId && videoEl.cancelVideoFrameCallback) {
+        videoEl.cancelVideoFrameCallback(videoFrameCallbackId);
+        videoFrameCallbackId = null;
+    }
+    lastFpsUpdate = 0;
+    frameCount = 0;
+    streamFpsEl.classList.add('hidden');
 
     // Clear card selection
     document.querySelectorAll('.host-card').forEach((c) => c.classList.remove('selected'));
@@ -554,6 +584,23 @@ function sendSettings() {
 
 selectResolution.addEventListener('change', sendSettings);
 selectQuality.addEventListener('change', sendSettings);
+
+function updateFpsCallback(now, metadata) {
+    frameCount++;
+    if (!lastFpsUpdate) {
+        lastFpsUpdate = now;
+    }
+    const elapsed = now - lastFpsUpdate;
+    if (elapsed >= 1000) {
+        const fps = Math.round((frameCount * 1000) / elapsed);
+        streamFpsEl.textContent = `${fps} FPS`;
+        frameCount = 0;
+        lastFpsUpdate = now;
+    }
+    if (videoEl.srcObject) {
+        videoFrameCallbackId = videoEl.requestVideoFrameCallback(updateFpsCallback);
+    }
+}
 
 // =====================================================================
 // Helpers

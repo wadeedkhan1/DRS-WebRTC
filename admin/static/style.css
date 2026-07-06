@@ -568,3 +568,7 @@ body {
     background: var(--bg-elevated);
     color: var(--text);
 }
+
+.hidden {
+    display: none !important;
+}
