@@ -14,10 +14,12 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -45,7 +47,7 @@ var (
 func init() {
 	drsWSURL = os.Getenv("DRS_URL")
 	if drsWSURL == "" {
-		drsWSURL = "ws://2.25.187.24:8080/ws?role=viewer"
+		drsWSURL = "ws://localhost:8080/ws?role=viewer"
 	}
 
 	listenAddr = os.Getenv("ADMIN_ADDR")
@@ -109,6 +111,20 @@ func handleViewerWS(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return
 			}
+
+			// Parse and log settings change messages
+			var parsed struct {
+				Type     string `json:"type"`
+				Settings *struct {
+					Width   int32 `json:"width"`
+					Quality int32 `json:"quality"`
+				} `json:"settings"`
+			}
+			if json.Unmarshal(msg, &parsed) == nil && parsed.Type == "settings" && parsed.Settings != nil {
+				log.Printf("[Proxy] Relaying settings change to host: width=%d, quality=%d",
+					parsed.Settings.Width, parsed.Settings.Quality)
+			}
+
 			if err := drsConn.WriteMessage(msgType, msg); err != nil {
 				return
 			}
@@ -146,6 +162,9 @@ func startServer() {
 // =====================================================================
 
 func main() {
+	// Lock OS thread to prevent WebView2 thread-migration crashes on Windows
+	runtime.LockOSThread()
+
 	// Start the HTTP server in the background
 	go startServer()
 

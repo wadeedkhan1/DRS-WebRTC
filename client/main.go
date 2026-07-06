@@ -22,11 +22,11 @@ import (
 	"time"
 
 	x264 "github.com/gen2brain/x264-go"
+	"github.com/ghp3000/screenshot/d3d"
 	"github.com/go-vgo/robotgo"
 	"github.com/gogpu/systray"
 	"github.com/gorilla/websocket"
 	"github.com/kbinani/screenshot"
-	"github.com/ghp3000/screenshot/d3d"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 )
@@ -34,17 +34,18 @@ import (
 const perfLogging = true
 
 type Message struct {
-	Type      string      `json:"type"`
-	Role      string      `json:"role,omitempty"`
-	SenderID  string      `json:"sender_id,omitempty"`
-	TargetID  string      `json:"target_id,omitempty"`
-	ID        string      `json:"id,omitempty"`
-	Hostname  string      `json:"hostname,omitempty"`
-	SDP       string      `json:"sdp,omitempty"`
-	Candidate string      `json:"candidate,omitempty"`
-	Control   *ControlCmd `json:"control,omitempty"`
-	Hosts     []HostInfo  `json:"hosts,omitempty"`
-	Preview   string      `json:"preview,omitempty"`
+	Type      string       `json:"type"`
+	Role      string       `json:"role,omitempty"`
+	SenderID  string       `json:"sender_id,omitempty"`
+	TargetID  string       `json:"target_id,omitempty"`
+	ID        string       `json:"id,omitempty"`
+	Hostname  string       `json:"hostname,omitempty"`
+	SDP       string       `json:"sdp,omitempty"`
+	Candidate string       `json:"candidate,omitempty"`
+	Control   *ControlCmd  `json:"control,omitempty"`
+	Hosts     []HostInfo   `json:"hosts,omitempty"`
+	Preview   string       `json:"preview,omitempty"`
+	Settings  *SettingsCmd `json:"settings,omitempty"`
 }
 
 type ControlCmd struct {
@@ -55,6 +56,11 @@ type ControlCmd struct {
 	ScrollX float64 `json:"scroll_x,omitempty"`
 	ScrollY float64 `json:"scroll_y,omitempty"`
 	Key     string  `json:"key,omitempty"`
+}
+
+type SettingsCmd struct {
+	Width   int32 `json:"width"`   // target width limit, e.g. 1920, 1280, 854, or 0 for original
+	Quality int32 `json:"quality"` // CRF value, e.g. 18, 24, 32
 }
 
 type HostInfo struct {
@@ -85,6 +91,11 @@ var (
 	pendingCandidates []webrtc.ICECandidateInit
 	candidateMu       sync.Mutex
 	forceKeyframeChan = make(chan struct{}, 1)
+
+	// Stream settings (controlled dynamically by admin panel)
+	streamWidth     int32 = 1280
+	streamQuality   int32 = 24
+	settingsChanged int32 = 0
 )
 
 // =====================================================================
@@ -213,7 +224,7 @@ func main() {
 
 	drsURL = os.Getenv("DRS_URL")
 	if drsURL == "" {
-		drsURL = "ws://2.25.187.24:8080/ws?role=host"
+		drsURL = "ws://localhost:8080/ws?role=host"
 	}
 
 	clientID = loadOrGenerateID()
@@ -312,6 +323,14 @@ func handleMessage(msg Message) {
 
 	case "candidate":
 		handleCandidate(msg)
+
+	case "settings":
+		if msg.Settings != nil {
+			log.Printf("Received settings update: width=%d, quality=%d", msg.Settings.Width, msg.Settings.Quality)
+			atomic.StoreInt32(&streamWidth, msg.Settings.Width)
+			atomic.StoreInt32(&streamQuality, msg.Settings.Quality)
+			atomic.StoreInt32(&settingsChanged, 1)
+		}
 
 	case "control":
 		handleControl(msg.Control)
@@ -583,17 +602,22 @@ func streamScreen(ctx context.Context, track *webrtc.TrackLocalStaticSample) {
 	origW := bounds.Dx()
 	origH := bounds.Dy()
 
+	// Re-read settings atomically
+	targetW := int(atomic.LoadInt32(&streamWidth))
+	crf := float32(atomic.LoadInt32(&streamQuality))
+	atomic.StoreInt32(&settingsChanged, 0) // Clear any change flag from startup
+
 	width := origW
 	height := origH
-	if width > 1280 {
-		width = 1280
-		height = 1280 * origH / origW
+	if targetW > 0 && width > targetW {
+		width = targetW
+		height = targetW * origH / origW
 	}
 	width = width &^ 1
 	height = height &^ 1
 
-	needsScale := origW > 1280
-	log.Printf("Streaming screen: original %dx%d downscaled to %dx%d for streaming", origW, origH, width, height)
+	needsScale := origW > width || origH > height
+	log.Printf("Streaming screen: original %dx%d scaled to %dx%d (quality CRF %.0f) for streaming", origW, origH, width, height, crf)
 
 	// Initialize Screenshot Provider
 	var useDXGI bool = true
@@ -609,13 +633,15 @@ func streamScreen(ctx context.Context, track *webrtc.TrackLocalStaticSample) {
 
 	buf := &bytes.Buffer{}
 	opts := &x264.Options{
-		Width:     width,
-		Height:    height,
-		FrameRate: 15,
-		Tune:      "zerolatency",
-		Preset:    "veryfast",
-		Profile:   "baseline",
-		LogLevel:  x264.LogWarning,
+		Width:        width,
+		Height:       height,
+		FrameRate:    15,
+		Tune:         "zerolatency",
+		Preset:       "veryfast",
+		Profile:      "baseline",
+		RateControl:  "crf",
+		RateConstant: crf,
+		LogLevel:     x264.LogWarning,
 	}
 
 	enc, err := x264.NewEncoder(buf, opts)
@@ -675,6 +701,47 @@ func streamScreen(ctx context.Context, track *webrtc.TrackLocalStaticSample) {
 			firstFrame = true
 
 		case <-ticker.C:
+			// Check if resolution or quality settings changed dynamically
+			if atomic.CompareAndSwapInt32(&settingsChanged, 1, 0) {
+				newTargetW := int(atomic.LoadInt32(&streamWidth))
+				newCrf := float32(atomic.LoadInt32(&streamQuality))
+
+				newWidth := origW
+				newHeight := origH
+				if newTargetW > 0 && newWidth > newTargetW {
+					newWidth = newTargetW
+					newHeight = newTargetW * origH / origW
+				}
+				newWidth = newWidth &^ 1
+				newHeight = newHeight &^ 1
+				newNeedsScale := origW > newWidth || origH > newHeight
+
+				log.Printf("Settings changed dynamically: scaling to %dx%d (CRF %.0f)", newWidth, newHeight, newCrf)
+
+				// Update bounds/scaling needs
+				width = newWidth
+				height = newHeight
+				needsScale = newNeedsScale
+
+				// Re-allocate buffers if dimensions changed or needsScale toggled
+				if needsScale {
+					scaledImg = image.NewRGBA(image.Rect(0, 0, width, height))
+				} else {
+					scaledImg = nil
+				}
+				ycbcrImg = x264.NewYCbCr(image.Rect(0, 0, width, height))
+
+				// Update encoder options
+				opts.Width = width
+				opts.Height = height
+				opts.RateConstant = newCrf
+
+				if !recreateEncoder() {
+					return
+				}
+				firstFrame = true
+			}
+
 			frameStart := time.Now()
 			frameCount++
 

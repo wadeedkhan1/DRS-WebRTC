@@ -38,6 +38,8 @@ const controlHostNameEl = document.getElementById('control-host-name');
 const btnControl        = document.getElementById('btn-control');
 const btnFullscreen     = document.getElementById('btn-fullscreen');
 const btnDisconnect     = document.getElementById('btn-disconnect');
+const selectResolution  = document.getElementById('select-resolution');
+const selectQuality     = document.getElementById('select-quality');
 
 // =====================================================================
 // WebSocket connection
@@ -213,11 +215,17 @@ function selectHost(hostID, hostName) {
         c.classList.toggle('selected', c.dataset.hostId === hostID)
     );
 
+    selectResolution.disabled = false;
+    selectQuality.disabled = false;
+
     // Ask the DRS to relay a connection request to the target host
     wsSend({
         type: 'connect_host',
         target_id: hostID,
     });
+
+    // Send initial settings
+    sendSettings();
 }
 
 // =====================================================================
@@ -359,6 +367,8 @@ function disconnectHost(notify = true) {
     btnControl.innerHTML = '<span class="btn-icon">⊙</span> Take Control';
     btnFullscreen.disabled = true;
     btnDisconnect.disabled = true;
+    selectResolution.disabled = true;
+    selectQuality.disabled = true;
 
     // Clear card selection
     document.querySelectorAll('.host-card').forEach((c) => c.classList.remove('selected'));
@@ -526,6 +536,24 @@ btnFullscreen.addEventListener('click', () => {
 btnDisconnect.addEventListener('click', () => {
     disconnectHost(true);
 });
+
+function sendSettings() {
+    if (!selectedHostID) return;
+    const width = parseInt(selectResolution.value, 10);
+    const quality = parseInt(selectQuality.value, 10);
+    wsSend({
+        type: 'settings',
+        target_id: selectedHostID,
+        settings: {
+            width: width,
+            quality: quality
+        }
+    });
+    console.log(`[Settings] Sent settings to host ${selectedHostID}: width=${width}, quality=${quality}`);
+}
+
+selectResolution.addEventListener('change', sendSettings);
+selectQuality.addEventListener('change', sendSettings);
 
 // =====================================================================
 // Helpers

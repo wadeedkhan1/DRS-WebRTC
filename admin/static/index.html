@@ -47,6 +47,23 @@
                 <span id="connection-status" class="status-dot"></span>
             </div>
             <div id="toolbar-actions">
+                <div class="select-group">
+                    <span class="select-label">Res</span>
+                    <select id="select-resolution" class="select-control" disabled>
+                        <option value="0">Auto</option>
+                        <option value="1920">1080p</option>
+                        <option value="1280" selected>720p</option>
+                        <option value="854">480p</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <span class="select-label">Quality</span>
+                    <select id="select-quality" class="select-control" disabled>
+                        <option value="18">High</option>
+                        <option value="24" selected>Medium</option>
+                        <option value="32">Low</option>
+                    </select>
+                </div>
                 <button id="btn-control" class="btn btn-primary" disabled>
                     <span class="btn-icon">⊙</span> Take Control
                 </button>

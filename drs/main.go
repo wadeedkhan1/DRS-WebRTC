@@ -44,6 +44,7 @@ type Message struct {
 	Control   *ControlCmd `json:"control,omitempty"`    // Remote input event payload
 	Hosts     []HostInfo  `json:"hosts,omitempty"`      // List of hosts (for hosts_update)
 	Preview   string      `json:"preview,omitempty"`    // Base64-encoded JPEG thumbnail
+	Settings  *SettingsCmd `json:"settings,omitempty"`  // Resolution and quality update payload
 	// FUTURE: Auth    string `json:"auth,omitempty"`    // JWT or API key for authentication
 	// FUTURE: Session string `json:"session,omitempty"` // Unique session tracking ID
 }
@@ -57,6 +58,12 @@ type ControlCmd struct {
 	ScrollX float64 `json:"scroll_x,omitempty"` // Horizontal scroll delta
 	ScrollY float64 `json:"scroll_y,omitempty"` // Vertical scroll delta
 	Key     string  `json:"key,omitempty"`      // Key name (e.g. "enter", "a")
+}
+
+// SettingsCmd represents a video stream resolution and quality adjustment.
+type SettingsCmd struct {
+	Width   int32 `json:"width"`   // target width max, e.g. 1920, 1280, 854, or 0
+	Quality int32 `json:"quality"` // CRF value, e.g. 18, 24, 32
 }
 
 // HostInfo is the per-host metadata exposed to viewers.
@@ -305,9 +312,13 @@ func (s *Server) handleConnection(w http.ResponseWriter, r *http.Request) {
 			data, _ := json.Marshal(msg)
 			s.sendTo(msg.TargetID, data)
 
-		// ---- WebRTC signaling (offer / answer / ICE candidate) -----
-		case "offer", "answer", "candidate":
+		// ---- WebRTC signaling (offer / answer / ICE candidate) / settings -----
+		case "offer", "answer", "candidate", "settings":
 			msg.SenderID = client.ID
+			if msg.Type == "settings" && msg.Settings != nil {
+				log.Printf("[DRS] Relaying settings from viewer %s to target %s: width=%d, quality=%d",
+					client.ID, msg.TargetID, msg.Settings.Width, msg.Settings.Quality)
+			}
 			data, _ := json.Marshal(msg)
 			s.sendTo(msg.TargetID, data)
 
